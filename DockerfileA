@@ -1,0 +1,12 @@
+FROM bitnami/airflow:2
+
+ENV AIRFLOW_HOME=/opt/airflow
+
+USER root
+
+COPY requirements_airflow.txt .
+RUN pip install --no-cache-dir -r requirements_airflow.txt
+
+WORKDIR $AIRFLOW_HOME
+
+USER 1001

@@ -1,0 +1,59 @@
+FROM python:3.8
+
+# Install SDK.
+RUN pip install --no-cache-dir apache-beam[gcp]==2.43.0
+
+# Verify that the image does not have conflicting dependencies.
+RUN pip check
+# install requirements
+RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
+RUN pip install transformers scipy
+RUN pip install pandas
+
+#install cloud sdk for authentication 
+ENV GOOGLE_APPLICATION_CREDENTIALS=path to google credentials json file
+ENV PATH="${HOME}/.local/bin/:$PATH"
+
+USER root
+RUN apt-get update 
+RUN apt-get install curl -qq
+
+
+
+SHELL ["/bin/bash", "-o", "pipefail", "-e", "-u", "-x", "-c"]
+
+ARG CLOUD_SDK_VERSION=410.0.0
+ENV GCLOUD_HOME=/home/google-cloud-sdk
+
+ENV PATH="${GCLOUD_HOME}/bin/:${PATH}"
+USER 0
+
+RUN DOWNLOAD_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${CLOUD_SDK_VERSION}-linux-x86_64.tar.gz" \
+    && TMP_DIR="$(mktemp -d)" \
+    && curl -fL "${DOWNLOAD_URL}" --output "${TMP_DIR}/google-cloud-sdk.tar.gz" \
+    && mkdir -p "${GCLOUD_HOME}" \
+    && tar xzf "${TMP_DIR}/google-cloud-sdk.tar.gz" -C "${GCLOUD_HOME}" --strip-components=1 \
+    && "${GCLOUD_HOME}/install.sh" \
+       --bash-completion=false \
+       --path-update=false \
+       --usage-reporting=false \
+       --quiet \
+    && rm -rf "${TMP_DIR}" \
+    && gcloud --version
+
+# Copy files from official SDK image, including script/dependencies.
+COPY --from=apache/beam_python3.8_sdk:2.43.0 /opt/apache/beam /opt/apache/beam
+
+ENV BEAM_HOME=/opt/dataflow
+
+WORKDIR $BEAM_HOME
+
+RUN useradd -m raf && \
+    chown -R --from=root raf /opt/dataflow
+
+USER 1001
+
+
+# prevent the container from shutting down
+ENTRYPOINT ["tail"]
+CMD ["-f","/dev/null"]

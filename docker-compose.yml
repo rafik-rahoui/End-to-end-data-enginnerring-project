@@ -1,0 +1,174 @@
+version: '2'
+
+services:
+  spark:
+    build: 
+      context: .
+      dockerfile: ./DockerfileS   
+    container_name: spark_master      
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - '8888:8888'
+      - '4040:4040'
+    volumes:
+      - "./spark:/opt/spark:rw"  
+    
+  spark-worker:
+    image: docker.io/bitnami/spark:3.3
+    container_name: spark_worker      
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - '8083:8080'
+
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.8
+    container_name: kafka_zookeeper      
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+  kafka:
+    build: 
+      context: .
+      dockerfile: ./DockerfileK
+    container_name: kafka      
+    ports:
+      - "29092:29092"
+    environment:
+      - KAFKA_CFG_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENERS= EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092   
+      - KAFKA_CFG_ADVERTISED_LISTENERS= INTERNAL://kafka:9092,EXTERNAL_SAME_HOST://localhost:29092   #######
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP= INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT    #######
+      - KAFKA_INTER_BROKER_LISTENER_NAME= INTERNAL   
+    depends_on:
+      - zookeeper
+
+  schema-registry:
+    image: docker.io/bitnami/schema-registry:7.3
+    container_name: kafka_schema-registry
+    restart: always    
+    ports:
+      - '8082:8081'
+    depends_on:
+      - kafka
+    environment:
+      - SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8081
+      - SCHEMA_REGISTRY_KAFKA_BROKERS=PLAINTEXT://kafka:9092
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    container_name: kafka_kafdrop      
+    restart: "no"
+    environment:
+      KAFKA_BROKERCONNECT: "PLAINTEXT://kafka:9092"
+    ports:
+      - 9000:9000
+    depends_on:
+      - kafka
+
+
+
+  postgresql:
+    image: bitnami/postgresql:latest
+    container_name: airflow_postgre      
+    environment:
+      - POSTGRESQL_DATABASE=$POSTGRESQL_DATABASE
+      - POSTGRESQL_USERNAME=$POSTGRESQL_USERNAME
+      - POSTGRESQL_PASSWORD=$POSTGRESQL_PASSWORD
+    volumes:
+      - postgres_data:/bitnami/postgresql
+  redis:
+    image: bitnami/redis:latest
+    container_name: airflow_redis      
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+  airflow-worker:
+    build: 
+      context: .
+      dockerfile: ./DockerfileAW     
+    container_name: airflow_worker     
+    environment:
+      - AIRFLOW_WEBSERVER_HOST=airflow
+      - AIRFLOW_FERNET_KEY=$fernet_key
+      - AIRFLOW_SECRET_KEY=$secret_key
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=$POSTGRESQL_DATABASE
+      - AIRFLOW_DATABASE_USERNAME=$POSTGRESQL_USERNAME
+      - AIRFLOW_DATABASE_PASSWORD=$POSTGRESQL_PASSWORD
+      - AIRFLOW_LOAD_EXAMPLES=no
+    volumes:
+      - ./Airflow/plugins:/opt/bitnami/airflow/plugins
+      - ./Airflow/logs:/opt/airflow/logs
+      - ./Airflow/dags:/opt/bitnami/airflow/dags
+      - //var/run/docker.sock:/var/run/docker.sock      
+  airflow-scheduler:
+    image: bitnami/airflow-scheduler:2
+    container_name: airflow_scheduler     
+    environment:
+      - AIRFLOW_WEBSERVER_HOST=airflow
+      - AIRFLOW_FERNET_KEY=$fernet_key
+      - AIRFLOW_SECRET_KEY=$secret_key
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=$POSTGRESQL_DATABASE
+      - AIRFLOW_DATABASE_USERNAME=$POSTGRESQL_USERNAME
+      - AIRFLOW_DATABASE_PASSWORD=$POSTGRESQL_PASSWORD
+      - AIRFLOW_LOAD_EXAMPLES=no
+    volumes:
+      - ./Airflow/plugins:/opt/bitnami/airflow/plugins
+      - ./Airflow/logs:/opt/airflow/logs
+      - ./Airflow/dags:/opt/bitnami/airflow/dags
+      - //var/run/docker.sock:/var/run/docker.sock      
+  airflow:
+    build: 
+      context: .
+      dockerfile: ./DockerfileA  
+    container_name: airflow      
+    environment:
+      - AIRFLOW_FERNET_KEY=$fernet_key
+      - AIRFLOW_SECRET_KEY=$secret_key
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=$POSTGRESQL_DATABASE
+      - AIRFLOW_DATABASE_USERNAME=$POSTGRESQL_USERNAME
+      - AIRFLOW_DATABASE_PASSWORD=$POSTGRESQL_PASSWORD
+      - AIRFLOW_PASSWORD=$AIRFLOW_PASSWORD  
+      - AIRFLOW_USERNAME=$AIRFLOW_USERNAME
+      - AIRFLOW_EMAIL=$AIRFLOW_EMAIL
+    volumes:
+      - ./Airflow/dags:/opt/bitnami/airflow/dags
+      - ./Airflow/logs:/opt/airflow/logs
+      - ./Airflow/plugins:/opt/bitnami/airflow/plugins
+      - //var/run/docker.sock:/var/run/docker.sock      
+    ports:
+      - '8085:8080'
+
+  dataflow:
+    build: 
+      context: .
+      dockerfile: ./DockerfileB  
+    container_name: dataflow
+    volumes:
+      - ./beam:/opt/dataflow
+
+
+volumes:
+  zookeeper_data:
+    driver: local
+  postgres_data:
+    driver: local

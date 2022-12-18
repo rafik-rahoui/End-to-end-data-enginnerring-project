@@ -1,0 +1,7 @@
+pandas
+kafka-python==1.4.6
+jupyter
+google-cloud-pubsub
+google-auth
+tweepy
+configparser

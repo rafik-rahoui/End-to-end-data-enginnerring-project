@@ -1,0 +1,13 @@
+FROM docker.io/bitnami/spark:3.3
+
+USER root
+RUN apt-get update 
+RUN apt-get install wget -qqq
+RUN apt-get install curl -qqq
+
+
+# the rootless user ID
+USER 1001    
+
+COPY requirements_spark.txt .
+RUN pip install --no-cache-dir -r requirements_spark.txt

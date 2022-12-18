@@ -1,0 +1,14 @@
+FROM docker.io/bitnami/kafka:3.3
+
+USER root
+RUN apt-get update 
+RUN apt-get install wget -qq
+RUN apt-get install python3 -qqq
+RUN apt-get install python3-pip python-dev -qqq
+
+
+COPY requirements_kafka.txt .
+RUN pip install --no-cache-dir -r requirements_kafka.txt
+
+USER 1001    
+
