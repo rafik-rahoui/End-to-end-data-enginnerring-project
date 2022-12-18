@@ -1,7 +1,3 @@
-#ignore all csv files
-variables.tf
-*terraform*
 tweet_ingestion_to_gcs/
 notes.txt
-config*
 working scripts/
